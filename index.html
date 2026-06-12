@@ -670,22 +670,20 @@
         .split(/\s+/)
         .filter(Boolean);
 
-      const heardObjs = [];
-      const heardNums = [];
-
+      const heard = [];
       for (const w of words) {
         if (numberWords[w] !== undefined) {
-          heardNums.push(numberWords[w]);
+          heard.push(numberWords[w]);
         } else if (/^\d+$/.test(w)) {
           for (const ch of w) {
             const d = parseInt(ch);
-            if (d >= 1 && d <= 9) heardNums.push(d);
+            if (d >= 1 && d <= 9) heard.push(d);
           }
         } else if (OBJECTS.includes(w)) {
-          heardObjs.push(w);
+          heard.push(w);
         }
       }
-      return { heardObjs, heardNums };
+      return heard;
     }
 
     function arraysEqual(a, b) {
@@ -695,10 +693,8 @@
     async function processAnswer(transcript) {
       if (cancelled) return;
       state = "checking";
-      const { heardObjs, heardNums } = extractFromSpeech(transcript);
-      const objsOk = arraysEqual(heardObjs, expectedObjects);
-      const numsOk = arraysEqual(heardNums, expectedNumbers);
-      const correct = objsOk && numsOk;
+      const heard = extractFromSpeech(transcript);
+      const correct = arraysEqual(heard, currentSeq);
 
       if (correct) {
         playTone("ding");
