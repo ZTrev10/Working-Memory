@@ -24,7 +24,7 @@ ITEMS=(
 
 total=${#ITEMS[@]}
 
-echo "Generating Male (Guy) voices..."
+echo "Generating Male (Christopher) voices..."
 count=0
 for item in "${ITEMS[@]}"; do
   count=$((count + 1))
@@ -34,11 +34,11 @@ for item in "${ITEMS[@]}"; do
     continue
   fi
   echo "  [$count/$total] $item"
-  edge-tts --voice en-US-GuyNeural --text "$item" --write-media "$OUT"
+  edge-tts --voice en-US-ChristopherNeural --text "$item" --write-media "$OUT"
 done
 
 echo ""
-echo "Generating Female (Aria) voices..."
+echo "Generating Female (Jenny) voices..."
 count=0
 for item in "${ITEMS[@]}"; do
   count=$((count + 1))
@@ -48,7 +48,7 @@ for item in "${ITEMS[@]}"; do
     continue
   fi
   echo "  [$count/$total] $item"
-  edge-tts --voice en-US-AriaNeural --text "$item" --write-media "$OUT"
+  edge-tts --voice en-US-JennyNeural --text "$item" --write-media "$OUT"
 done
 
 echo ""
