@@ -288,24 +288,26 @@
 
   <script>
     const OBJECTS = [
-      "cat","dog","bird","fish","frog","bear","wolf","fox","owl","duck",
-      "cow","pig","horse","sheep","deer","bee","ant","crab","shark","hawk",
+      "cat","dog","bird","fish","frog","wolf","fox","owl","duck",
+      "cow","pig","horse","sheep","ant","crab","shark","hawk",
       "crow","bat","rat","mouse","lamb","bull","hen","elk","seal","whale",
       "cup","bowl","plate","fork","knife","spoon","pot","pan","box","bag",
       "book","pen","key","lock","door","bed","chair","lamp","clock","ring",
       "belt","boot","shoe","hat","glove","brush","comb","soap","stone","leaf",
       "branch","seed","vine","bush","log","rope","chain","hook","nail","bell",
-      "ball","dart","card","coin","gem","bead","silk","wool","thread","knot",
-      "bread","cake","pie","soup","rice","bean","corn","nut","fig","plum",
-      "pear","grape","lime","peach","egg","milk","cheese","steak","ham","prawn",
+      "ball","dart","card","coin","gem","bead","silk","wool","thread",
+      "bread","cake","pie","soup","rice","corn","nut","fig","plum",
+      "grape","lime","peach","egg","milk","cheese","ham","prawn",
       "hill","cliff","cave","lake","pond","stream","beach","field","barn","bridge",
-      "path","gate","tower","shelf","drum","torch","flag","mask","sword","shield"
+      "path","gate","tower","shelf","drum","torch","flag","mask","sword","shield",
+      "brick","cloud","flame","glass","grass","iron","match","paint","plank","smoke",
+      "snail","spike","spine","stamp","stick","straw","tent","thorn","trunk","twig"
     ];
     const NUMBERS = [1,2,3,4,5,6,7,8,9];
 
-    let seqLen = 3;
+    let seqLen = parseInt(localStorage.getItem("wm_seqLen") || "3");
     let streak = 0;
-    let best = 3;
+    let best = parseInt(localStorage.getItem("wm_best") || String(seqLen));
     let currentSeq = [];
     let expectedObjects = [];
     let expectedNumbers = [];
@@ -350,15 +352,61 @@
     function loadVoice() {
       const voices = speechSynthesis.getVoices();
       if (!voices.length) return;
-      ttsVoice = voices.find(v => v.lang === 'en-US' && v.localService)
-              || voices.find(v => v.lang.startsWith('en') && v.localService)
-              || voices.find(v => v.lang.startsWith('en'))
+      const en = voices.filter(v => v.lang.startsWith('en'));
+      ttsVoice = en.find(v => /premium/i.test(v.name))
+              || en.find(v => /enhanced/i.test(v.name))
+              || en.find(v => v.lang === 'en-US' && v.localService)
+              || en.find(v => v.localService)
+              || en[0]
               || voices[0];
     }
     speechSynthesis.addEventListener('voiceschanged', loadVoice);
     loadVoice();
 
-    function speak(text) {
+    // Pre-fetch audio files in background; decode on first play
+    const rawAudio = {};
+    const decodedAudio = {};
+    async function preloadAll() {
+      const items = [...OBJECTS, ...NUMBERS.map(String)];
+      for (const item of items) {
+        try {
+          const res = await fetch(`audio/${item}.m4a`);
+          if (res.ok) rawAudio[item] = await res.arrayBuffer();
+        } catch(e) {}
+      }
+    }
+    preloadAll();
+
+    async function getBuffer(text) {
+      const key = String(text);
+      if (decodedAudio[key]) return decodedAudio[key];
+      const raw = rawAudio[key];
+      if (!raw) return null;
+      try {
+        const ctx = getAudioCtx();
+        decodedAudio[key] = await ctx.decodeAudioData(raw.slice(0));
+        return decodedAudio[key];
+      } catch(e) { return null; }
+    }
+
+    async function playWord(text) {
+      const buffer = await getBuffer(text);
+      if (buffer) {
+        const ctx = getAudioCtx();
+        if (ctx.state === 'suspended') await ctx.resume();
+        return new Promise(res => {
+          const src = ctx.createBufferSource();
+          src.buffer = buffer;
+          src.connect(ctx.destination);
+          const timeout = setTimeout(res, (buffer.duration * 1000) + 500);
+          src.onended = () => { clearTimeout(timeout); res(); };
+          src.start();
+        });
+      }
+      return speakTTS(text);
+    }
+
+    function speakTTS(text) {
       return new Promise(res => {
         const u = new SpeechSynthesisUtterance(String(text));
         u.rate = 0.85;
@@ -389,28 +437,40 @@
       const objCount = len - numCount;
       const objs = shuffle(OBJECTS).slice(0, objCount);
       const nums = shuffle(NUMBERS).slice(0, numCount);
-      let seq = shuffle([...objs, ...nums]);
 
-      for (let pass = 0; pass < 20; pass++) {
-        let fixed = true;
-        for (let i = 0; i < seq.length - 2; i++) {
-          const t = x => typeof x;
-          if (t(seq[i]) === t(seq[i+1]) && t(seq[i+1]) === t(seq[i+2])) {
-            for (let j = i + 3; j < seq.length; j++) {
-              if (t(seq[j]) !== t(seq[i])) {
-                [seq[i+2], seq[j]] = [seq[j], seq[i+2]];
-                fixed = false;
-                break;
+      let seq;
+      let attempts = 0;
+      do {
+        seq = shuffle([...objs, ...nums]);
+        // Break up 3+ same-type runs
+        for (let pass = 0; pass < 20; pass++) {
+          let clean = true;
+          for (let i = 0; i < seq.length - 2; i++) {
+            const t = x => typeof x;
+            if (t(seq[i]) === t(seq[i+1]) && t(seq[i+1]) === t(seq[i+2])) {
+              for (let j = i + 3; j < seq.length; j++) {
+                if (t(seq[j]) !== t(seq[i])) {
+                  [seq[i+2], seq[j]] = [seq[j], seq[i+2]];
+                  clean = false;
+                  break;
+                }
               }
             }
           }
+          if (clean) break;
         }
-        if (fixed) break;
-      }
+        attempts++;
+        // Reject if sequence order matches answer order (all objs before all nums)
+        const firstNumIdx = seq.findIndex(x => typeof x === "number");
+        const lastObjIdx = seq.reduce((acc, x, i) => typeof x === "string" ? i : acc, -1);
+      } while (attempts < 20 && seq.findIndex(x => typeof x === "number") > seq.reduce((acc, x, i) => typeof x === "string" ? i : acc, -1));
+
       return seq;
     }
 
     function updateStats() {
+      localStorage.setItem("wm_seqLen", seqLen);
+      localStorage.setItem("wm_best", best);
       document.getElementById("stat-len").textContent = seqLen;
       document.getElementById("stat-streak").textContent = streak;
       document.getElementById("stat-best").textContent = best;
@@ -479,12 +539,26 @@
     let micPermissionGranted = false;
     async function requestMicPermission() {
       if (micPermissionGranted) return;
+      // Check if already granted without prompting
+      if (navigator.permissions) {
+        try {
+          const result = await navigator.permissions.query({ name: "microphone" });
+          if (result.state === "granted") { micPermissionGranted = true; return; }
+          if (result.state === "denied") {
+            setStatus("Microphone blocked. Enable in Settings > Safari > Microphone.", "wrong");
+            throw new Error("denied");
+          }
+        } catch(e) {
+          if (e.message === "denied") throw e;
+          // permissions API not supported — fall through to getUserMedia
+        }
+      }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(t => t.stop());
         micPermissionGranted = true;
       } catch(e) {
-        setStatus("Microphone access denied. Enable it in Settings > Safari > Microphone.", "wrong");
+        setStatus("Microphone access denied. Enable in Settings > Safari > Microphone.", "wrong");
         throw e;
       }
     }
@@ -511,13 +585,13 @@
 
       for (let i = 0; i < currentSeq.length; i++) {
         if (cancelled) return;
-        await new Promise(r => setTimeout(r, i === 0 ? 400 : 1000));
+        await new Promise(r => setTimeout(r, i === 0 ? 300 : 400));
         if (cancelled) return;
         currentSeq.forEach((_, j) => {
           const el = document.getElementById(`si-${j}`);
           if (el) el.className = "seq-item" + (j === i ? " active" : "");
         });
-        await speak(String(currentSeq[i]));
+        await playWord(String(currentSeq[i]));
       }
 
       if (cancelled) return;
@@ -680,13 +754,13 @@
 
       for (let i = 0; i < currentSeq.length; i++) {
         if (cancelled) return;
-        await new Promise(r => setTimeout(r, i === 0 ? 400 : 1000));
+        await new Promise(r => setTimeout(r, i === 0 ? 300 : 400));
         if (cancelled) return;
         currentSeq.forEach((_, j) => {
           const el = document.getElementById(`si-${j}`);
           if (el) el.className = "seq-item" + (j === i ? " active" : "");
         });
-        await speak(String(currentSeq[i]));
+        await playWord(String(currentSeq[i]));
       }
 
       if (cancelled) return;
