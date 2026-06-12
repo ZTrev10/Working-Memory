@@ -10,20 +10,20 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #f9f6f1;
-      --surface: #ffffff;
-      --surface2: #f1ede6;
-      --text: #1a1a1a;
-      --text2: #6b6560;
-      --border: rgba(0,0,0,0.12);
-      --blue: #185FA5;
-      --blue-bg: #E6F1FB;
-      --green: #3B6D11;
-      --green-bg: #EAF3DE;
-      --red: #A32D2D;
-      --red-bg: #FCEBEB;
-      --active-bg: #B5D4F4;
-      --active-text: #042C53;
+      --bg: #0f0f0f;
+      --surface: #1c1c1e;
+      --surface2: #2c2c2e;
+      --text: #f2f2f7;
+      --text2: #8e8e93;
+      --border: rgba(255,255,255,0.1);
+      --blue: #4da3ff;
+      --blue-bg: #0a2540;
+      --green: #7bc67e;
+      --green-bg: #0d2b10;
+      --red: #ff6b6b;
+      --red-bg: #2b0d0d;
+      --active-bg: #1a3a5c;
+      --active-text: #90c8ff;
       --radius-md: 8px;
       --radius-lg: 12px;
     }
@@ -364,8 +364,32 @@
       }
     }
 
+    let speechWarmedUp = false;
+    async function warmUpSpeech() {
+      if (speechWarmedUp) return;
+      speechWarmedUp = true;
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      speechSynthesis.speak(u);
+    }
+
+    let micPermissionGranted = false;
+    async function requestMicPermission() {
+      if (micPermissionGranted) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+        micPermissionGranted = true;
+      } catch(e) {
+        setStatus("Microphone access denied. Enable it in Settings > Safari > Microphone.", "wrong");
+        throw e;
+      }
+    }
+
     async function startRound() {
       if (audioCtx.state === "suspended") await audioCtx.resume();
+      await warmUpSpeech();
+      try { await requestMicPermission(); } catch(e) { return; }
       hadIncorrect = false;
       currentSeq = buildSequence(seqLen);
       expectedObjects = currentSeq.filter(x => typeof x === "string");
@@ -397,14 +421,15 @@
 
       document.getElementById("recall-hint").textContent = "Say objects in order, then numbers.";
       state = "waiting";
-      setStatus("Ready when you are.");
-      setButtons("listen");
+      setStatus("Listening...", "listening");
+      setButtons("none");
+      startListening();
     }
 
     function startListening() {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) {
-        setStatus("Speech recognition not supported. Use Chrome on Android.", "wrong");
+        setStatus("Speech recognition not supported. Use Safari on iPhone.", "wrong");
         return;
       }
       recognition = new SR();
@@ -545,8 +570,9 @@
 
       document.getElementById("recall-hint").textContent = "Say objects in order, then numbers.";
       state = "waiting";
-      setStatus("Ready when you are.");
-      setButtons("listen");
+      setStatus("Listening...", "listening");
+      setButtons("none");
+      startListening();
     }
 
     function startVoiceChoice() {
