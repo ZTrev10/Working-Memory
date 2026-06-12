@@ -1,10 +1,8 @@
 #!/bin/bash
 # Run from the Working Memory directory: bash generate-audio.sh
-# Requires macOS (uses built-in `say` and `afconvert`)
+# Requires: pip3 install edge-tts
 
-VOICE="Alex"
-RATE=145
-mkdir -p audio
+mkdir -p audio/male audio/female
 
 ITEMS=(
   cat dog bird fish frog wolf fox owl duck
@@ -25,20 +23,33 @@ ITEMS=(
 )
 
 total=${#ITEMS[@]}
+
+echo "Generating Male (Guy) voices..."
 count=0
 for item in "${ITEMS[@]}"; do
   count=$((count + 1))
-  OUT="audio/${item}.m4a"
+  OUT="audio/male/${item}.mp3"
   if [ -f "$OUT" ]; then
-    echo "[$count/$total] Skipping (exists): $item"
+    echo "  [$count/$total] Skipping: $item"
     continue
   fi
-  echo "[$count/$total] Generating: $item"
-  TMP="/tmp/wm_${item}.aiff"
-  say -v "$VOICE" -r $RATE "$item" -o "$TMP"
-  afconvert "$TMP" -d aac -f m4af -b 64000 "$OUT"
-  rm -f "$TMP"
+  echo "  [$count/$total] $item"
+  edge-tts --voice en-US-GuyNeural --text "$item" --write-media "$OUT"
 done
 
 echo ""
-echo "Done. $total audio files in ./audio/"
+echo "Generating Female (Aria) voices..."
+count=0
+for item in "${ITEMS[@]}"; do
+  count=$((count + 1))
+  OUT="audio/female/${item}.mp3"
+  if [ -f "$OUT" ]; then
+    echo "  [$count/$total] Skipping: $item"
+    continue
+  fi
+  echo "  [$count/$total] $item"
+  edge-tts --voice en-US-AriaNeural --text "$item" --write-media "$OUT"
+done
+
+echo ""
+echo "Done. $(($total * 2)) audio files generated."

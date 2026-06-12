@@ -48,7 +48,7 @@ for item in "${ITEMS[@]}"; do
 
   TMP="/tmp/wm_${item}.mp3"
 
-  curl -s -X POST \
+  HTTP_STATUS=$(curl -s -w "%{http_code}" -X POST \
     "https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}" \
     -H "xi-api-key: ${API_KEY}" \
     -H "Content-Type: application/json" \
@@ -62,7 +62,15 @@ for item in "${ITEMS[@]}"; do
         \"use_speaker_boost\": true
       }
     }" \
-    -o "$TMP"
+    -o "$TMP")
+
+  if [ "$HTTP_STATUS" != "200" ]; then
+    echo "  API error (HTTP $HTTP_STATUS):"
+    cat "$TMP"
+    echo ""
+    rm -f "$TMP"
+    exit 1
+  fi
 
   # Convert MP3 to M4A (same quality, smaller file)
   afconvert "$TMP" -d aac -f m4af -b 64000 "$OUT"

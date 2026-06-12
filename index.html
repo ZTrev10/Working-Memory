@@ -68,6 +68,34 @@
       width: 100%;
     }
 
+    .voice-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      width: 100%;
+    }
+
+    .voice-btn {
+      padding: 10px;
+      border-radius: var(--radius-md);
+      border: 0.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      -webkit-appearance: none;
+      text-align: center;
+    }
+
+    .voice-btn:active { transform: scale(0.97); }
+    .voice-btn.selected {
+      background: var(--blue-bg);
+      color: var(--blue);
+      border-color: var(--blue);
+    }
+
     .stat {
       background: var(--surface);
       border: 0.5px solid var(--border);
@@ -273,6 +301,11 @@
       </div>
     </div>
 
+    <div class="voice-row">
+      <button class="voice-btn" id="voice-male" onclick="setVoice('male')">Male</button>
+      <button class="voice-btn" id="voice-female" onclick="setVoice('female')">Female</button>
+    </div>
+
     <div class="sequence-display" id="seq-display">
       <span class="seq-placeholder">tap start to begin</span>
     </div>
@@ -363,14 +396,33 @@
     speechSynthesis.addEventListener('voiceschanged', loadVoice);
     loadVoice();
 
+    let selectedVoice = localStorage.getItem('wm_voice') || null;
+
+    function setVoice(v) {
+      selectedVoice = v;
+      localStorage.setItem('wm_voice', v);
+      document.getElementById('voice-male').classList.toggle('selected', v === 'male');
+      document.getElementById('voice-female').classList.toggle('selected', v === 'female');
+      // Clear cache so new voice loads fresh
+      Object.keys(rawAudio).forEach(k => delete rawAudio[k]);
+      Object.keys(decodedAudio).forEach(k => delete decodedAudio[k]);
+      preloadAll();
+    }
+
+    // Restore saved voice selection highlight
+    if (selectedVoice) {
+      document.getElementById('voice-' + selectedVoice)?.classList.add('selected');
+    }
+
     // Pre-fetch audio files in background; decode on first play
     const rawAudio = {};
     const decodedAudio = {};
     async function preloadAll() {
+      if (!selectedVoice) return;
       const items = [...OBJECTS, ...NUMBERS.map(String)];
       for (const item of items) {
         try {
-          const res = await fetch(`audio/${item}.m4a`);
+          const res = await fetch(`audio/${selectedVoice}/${item}.mp3`);
           if (res.ok) rawAudio[item] = await res.arrayBuffer();
         } catch(e) {}
       }
