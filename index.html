@@ -288,14 +288,23 @@
 
   <script>
     const OBJECTS = [
-      "apple","table","pencil","window","river","forest","candle","bottle","carpet","pillow",
-      "garden","mirror","pocket","basket","hammer","ladder","parrot","kitten","button","jacket",
-      "coffee","blanket","kettle","muffin","pebble","tunnel","rabbit","spider","cactus","helmet",
-      "pickle","monkey","mango","bagel","lemon","cabin","kitten","napkin","rubber","denim"
+      "cat","dog","bird","fish","frog","bear","wolf","fox","owl","duck",
+      "cow","pig","horse","sheep","deer","bee","ant","crab","shark","hawk",
+      "crow","bat","rat","mouse","lamb","bull","hen","elk","seal","whale",
+      "cup","bowl","plate","fork","knife","spoon","pot","pan","box","bag",
+      "book","pen","key","lock","door","bed","chair","lamp","clock","ring",
+      "belt","boot","shoe","hat","glove","brush","comb","soap","stone","leaf",
+      "branch","seed","vine","bush","log","rope","chain","hook","nail","bell",
+      "ball","dart","card","coin","gem","bead","silk","wool","thread","knot",
+      "bread","cake","pie","soup","rice","bean","corn","nut","fig","plum",
+      "pear","grape","lime","peach","egg","milk","cheese","steak","ham","prawn",
+      "hill","cliff","cave","lake","pond","stream","beach","field","barn","bridge",
+      "path","gate","tower","shelf","drum","torch","flag","mask","sword","shield"
     ];
     const NUMBERS = [1,2,3,4,5,6,7,8,9];
 
     let seqLen = 3;
+    let seqLenBeforeWrong = 3;
     let streak = 0;
     let best = 3;
     let currentSeq = [];
@@ -332,16 +341,26 @@
       }
     }
 
+    // iOS Safari pauses synthesis unexpectedly — resume it periodically
+    setInterval(() => {
+      if (speechSynthesis.speaking && speechSynthesis.paused) speechSynthesis.resume();
+    }, 200);
+
     function speak(text) {
       return new Promise(res => {
-        speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(String(text));
-        u.rate = 0.9;
+        u.rate = 0.85;
         u.pitch = 1;
-        u.onend = res;
-        u.onerror = res;
+        // Fallback in case onend never fires (iOS bug)
+        const fallback = setTimeout(res, 4000);
+        u.onend = () => { clearTimeout(fallback); res(); };
+        u.onerror = () => { clearTimeout(fallback); res(); };
         speechSynthesis.speak(u);
       });
+    }
+
+    function cancelSpeech() {
+      speechSynthesis.cancel();
     }
 
     function shuffle(arr) {
@@ -403,7 +422,7 @@
 
     function cancelRound() {
       cancelled = true;
-      speechSynthesis.cancel();
+      cancelSpeech();
       if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
       if (choiceRecognition) { try { choiceRecognition.stop(); } catch(e){} choiceRecognition = null; }
       state = "idle";
@@ -493,7 +512,7 @@
         if (el) el.className = "seq-item";
       });
 
-      document.getElementById("recall-hint").textContent = "Say objects in order, then numbers.";
+      document.getElementById("recall-hint").textContent = "Recall the sequence.";
       state = "waiting";
       setStatus("Listening...", "listening");
       setButtons("active");
@@ -623,6 +642,7 @@
         playTone("buzz");
         hadIncorrect = true;
         streak = 0;
+        seqLenBeforeWrong = seqLen;
         if (seqLen > 3) seqLen--;
         updateStats();
         setStatus("Incorrect. Repeating...", "wrong");
@@ -663,7 +683,7 @@
         if (el) el.className = "seq-item";
       });
 
-      document.getElementById("recall-hint").textContent = "Say objects in order, then numbers.";
+      document.getElementById("recall-hint").textContent = "Recall the sequence.";
       state = "waiting";
       setStatus("Listening...", "listening");
       setButtons("active");
@@ -690,7 +710,9 @@
 
     function choiceRepeat() {
       if (choiceRecognition) { try { choiceRecognition.stop(); } catch(e){} choiceRecognition = null; }
+      seqLen = seqLenBeforeWrong;
       hadIncorrect = false;
+      updateStats();
       startRound();
     }
 
