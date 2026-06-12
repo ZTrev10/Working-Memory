@@ -72,7 +72,7 @@
       background: var(--surface);
       border: 0.5px solid var(--border);
       border-radius: var(--radius-md);
-      padding: 0.75rem 1rem;
+      padding: 0.75rem 0.5rem;
       text-align: center;
     }
 
@@ -89,6 +89,37 @@
       font-weight: 600;
       color: var(--text);
     }
+
+    /* Length stepper inside the Length stat */
+    .stat-stepper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .step-btn {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      font-size: 18px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 0.5px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      transition: background 0.15s, transform 0.1s;
+      -webkit-appearance: none;
+    }
+
+    .step-btn:active { transform: scale(0.93); }
+    .step-btn:hover { background: #3a3a3c; }
+    .step-btn:disabled { opacity: 0.25; pointer-events: none; }
 
     .sequence-display {
       width: 100%;
@@ -206,6 +237,14 @@
     }
 
     button.primary:hover { background: #0C447C; }
+
+    button.danger {
+      background: var(--red-bg);
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    button.danger:hover { background: #3d1010; }
     button.full { grid-column: 1 / -1; }
     button:disabled { opacity: 0.4; pointer-events: none; }
   </style>
@@ -218,7 +257,11 @@
     <div class="stat-row">
       <div class="stat">
         <div class="stat-label">Length</div>
-        <div class="stat-value" id="stat-len">3</div>
+        <div class="stat-stepper">
+          <button class="step-btn" id="btn-dec" onclick="adjustStartLen(-1)">−</button>
+          <span class="stat-value" id="stat-len">3</span>
+          <button class="step-btn" id="btn-inc" onclick="adjustStartLen(1)">+</button>
+        </div>
       </div>
       <div class="stat">
         <div class="stat-label">Streak</div>
@@ -262,6 +305,7 @@
     let hadIncorrect = false;
     let recognition = null;
     let choiceRecognition = null;
+    let cancelled = false;
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -316,7 +360,6 @@
       const nums = shuffle(NUMBERS).slice(0, numCount);
       let seq = shuffle([...objs, ...nums]);
 
-      // Enforce no more than 2 of same type in a row
       for (let pass = 0; pass < 20; pass++) {
         let fixed = true;
         for (let i = 0; i < seq.length - 2; i++) {
@@ -340,6 +383,16 @@
       document.getElementById("stat-len").textContent = seqLen;
       document.getElementById("stat-streak").textContent = streak;
       document.getElementById("stat-best").textContent = best;
+      const idle = state === "idle";
+      document.getElementById("btn-dec").disabled = !idle || seqLen <= 3;
+      document.getElementById("btn-inc").disabled = !idle || seqLen >= 12;
+    }
+
+    function adjustStartLen(delta) {
+      if (state !== "idle") return;
+      seqLen = Math.max(3, Math.min(12, seqLen + delta));
+      if (seqLen > best) best = seqLen;
+      updateStats();
     }
 
     function setStatus(msg, cls) {
@@ -348,16 +401,31 @@
       b.className = "status-box" + (cls ? " " + cls : "");
     }
 
+    function cancelRound() {
+      cancelled = true;
+      speechSynthesis.cancel();
+      if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
+      if (choiceRecognition) { try { choiceRecognition.stop(); } catch(e){} choiceRecognition = null; }
+      state = "idle";
+      document.getElementById("seq-display").innerHTML = `<span class="seq-placeholder">tap start to begin</span>`;
+      document.getElementById("transcript").textContent = "";
+      document.getElementById("recall-hint").textContent = "";
+      setStatus("Cancelled. Press start to play a new sequence.");
+      setButtons("start");
+      updateStats();
+    }
+
     function setButtons(mode) {
       const row = document.getElementById("btn-row");
       if (mode === "start") {
         row.innerHTML = `<button class="primary full" onclick="startRound()">Start</button>`;
-      } else if (mode === "listen") {
-        row.innerHTML = `<button class="primary full" onclick="startListening()">Tap to Answer</button>`;
+      } else if (mode === "active") {
+        row.innerHTML = `<button class="danger full" onclick="cancelRound()">Cancel</button>`;
       } else if (mode === "choice") {
         row.innerHTML = `
           <button onclick="choiceRepeat()">Repeat Level</button>
           <button onclick="choiceDecrease()">Step Down</button>
+          <button class="danger full" onclick="cancelRound()">Cancel</button>
         `;
       } else if (mode === "none") {
         row.innerHTML = "";
@@ -390,15 +458,17 @@
       if (audioCtx.state === "suspended") await audioCtx.resume();
       await warmUpSpeech();
       try { await requestMicPermission(); } catch(e) { return; }
+      cancelled = false;
       hadIncorrect = false;
       currentSeq = buildSequence(seqLen);
       expectedObjects = currentSeq.filter(x => typeof x === "string");
       expectedNumbers = currentSeq.filter(x => typeof x === "number");
       state = "playing";
-      setButtons("none");
+      setButtons("active");
       setStatus("Listen carefully...");
       document.getElementById("recall-hint").textContent = "";
       document.getElementById("transcript").textContent = "";
+      updateStats();
 
       const display = document.getElementById("seq-display");
       display.innerHTML = currentSeq.map((x, i) =>
@@ -406,13 +476,17 @@
       ).join("");
 
       for (let i = 0; i < currentSeq.length; i++) {
+        if (cancelled) return;
         await new Promise(r => setTimeout(r, i === 0 ? 400 : 1000));
+        if (cancelled) return;
         currentSeq.forEach((_, j) => {
           const el = document.getElementById(`si-${j}`);
           if (el) el.className = "seq-item" + (j === i ? " active" : "");
         });
         await speak(String(currentSeq[i]));
       }
+
+      if (cancelled) return;
 
       currentSeq.forEach((_, j) => {
         const el = document.getElementById(`si-${j}`);
@@ -422,7 +496,7 @@
       document.getElementById("recall-hint").textContent = "Say objects in order, then numbers.";
       state = "waiting";
       setStatus("Listening...", "listening");
-      setButtons("none");
+      setButtons("active");
       startListening();
     }
 
@@ -438,7 +512,6 @@
       recognition.maxAlternatives = 3;
       state = "listening";
       setStatus("Listening...", "listening");
-      setButtons("none");
 
       recognition.onresult = e => {
         let interim = "", final = "";
@@ -454,15 +527,18 @@
       };
 
       recognition.onerror = e => {
-        setStatus("Mic error: " + e.error + ". Try again.", "wrong");
+        if (cancelled) return;
+        setStatus("Mic error: " + e.error + ". Tap Cancel and try again.", "wrong");
         state = "waiting";
-        setButtons("listen");
+        setButtons("active");
       };
 
       recognition.onend = () => {
+        if (cancelled) return;
         if (state === "listening") {
           state = "waiting";
-          setButtons("listen");
+          setButtons("active");
+          setStatus("Didn't catch that. Tap Cancel to restart.", "wrong");
         }
       };
 
@@ -485,8 +561,11 @@
       for (const w of words) {
         if (numberWords[w] !== undefined) {
           heardNums.push(numberWords[w]);
-        } else if (!isNaN(parseInt(w)) && parseInt(w) >= 1 && parseInt(w) <= 9) {
-          heardNums.push(parseInt(w));
+        } else if (/^\d+$/.test(w)) {
+          for (const ch of w) {
+            const d = parseInt(ch);
+            if (d >= 1 && d <= 9) heardNums.push(d);
+          }
         } else if (OBJECTS.includes(w)) {
           heardObjs.push(w);
         }
@@ -499,6 +578,7 @@
     }
 
     async function processAnswer(transcript) {
+      if (cancelled) return;
       state = "checking";
       const { heardObjs, heardNums } = extractFromSpeech(transcript);
       const objsOk = arraysEqual(heardObjs, expectedObjects);
@@ -522,11 +602,13 @@
 
         if (hadIncorrect) {
           await new Promise(r => setTimeout(r, 1000));
+          if (cancelled) return;
           setStatus("Want to repeat this level or step down?");
           setButtons("choice");
           startVoiceChoice();
         } else {
           await new Promise(r => setTimeout(r, 1200));
+          if (cancelled) return;
           startRound();
         }
 
@@ -538,13 +620,15 @@
         updateStats();
         setStatus("Incorrect. Repeating...", "wrong");
         await new Promise(r => setTimeout(r, 1800));
+        if (cancelled) return;
         repeatRound();
       }
     }
 
     async function repeatRound() {
+      if (cancelled) return;
       state = "playing";
-      setButtons("none");
+      setButtons("active");
       setStatus("Listen again...");
       document.getElementById("transcript").textContent = "";
       document.getElementById("recall-hint").textContent = "";
@@ -555,13 +639,17 @@
       ).join("");
 
       for (let i = 0; i < currentSeq.length; i++) {
+        if (cancelled) return;
         await new Promise(r => setTimeout(r, i === 0 ? 400 : 1000));
+        if (cancelled) return;
         currentSeq.forEach((_, j) => {
           const el = document.getElementById(`si-${j}`);
           if (el) el.className = "seq-item" + (j === i ? " active" : "");
         });
         await speak(String(currentSeq[i]));
       }
+
+      if (cancelled) return;
 
       currentSeq.forEach((_, j) => {
         const el = document.getElementById(`si-${j}`);
@@ -571,7 +659,7 @@
       document.getElementById("recall-hint").textContent = "Say objects in order, then numbers.";
       state = "waiting";
       setStatus("Listening...", "listening");
-      setButtons("none");
+      setButtons("active");
       startListening();
     }
 
