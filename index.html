@@ -386,7 +386,8 @@
       const voices = speechSynthesis.getVoices();
       if (!voices.length) return;
       const en = voices.filter(v => v.lang.startsWith('en'));
-      ttsVoice = en.find(v => /premium/i.test(v.name))
+      ttsVoice = en.find(v => /samantha|ava|allison|victoria|alex|daniel/i.test(v.name))
+              || en.find(v => /premium/i.test(v.name))
               || en.find(v => /enhanced/i.test(v.name))
               || en.find(v => v.lang === 'en-US' && v.localService)
               || en.find(v => v.localService)
@@ -396,7 +397,7 @@
     speechSynthesis.addEventListener('voiceschanged', loadVoice);
     loadVoice();
 
-    let selectedVoice = localStorage.getItem('wm_voice') || null;
+    let selectedVoice = localStorage.getItem('wm_voice') || 'female';
 
     function setVoice(v) {
       selectedVoice = v;
@@ -417,14 +418,27 @@
     // Pre-fetch audio files in background; decode on first play
     const rawAudio = {};
     const decodedAudio = {};
+    const AUDIO_EXTENSIONS = ["mp3", "m4a", "wav"];
+
+    async function fetchAudioFile(item) {
+      const roots = selectedVoice ? [`audio/${selectedVoice}`, "audio"] : ["audio"];
+      for (const root of roots) {
+        for (const ext of AUDIO_EXTENSIONS) {
+          try {
+            const res = await fetch(`${root}/${item}.${ext}`);
+            if (res.ok) return res.arrayBuffer();
+          } catch(e) {}
+        }
+      }
+      return null;
+    }
+
     async function preloadAll() {
       if (!selectedVoice) return;
       const items = [...OBJECTS, ...NUMBERS.map(String)];
       for (const item of items) {
-        try {
-          const res = await fetch(`audio/${selectedVoice}/${item}.mp3`);
-          if (res.ok) rawAudio[item] = await res.arrayBuffer();
-        } catch(e) {}
+        const audio = await fetchAudioFile(item);
+        if (audio) rawAudio[item] = audio;
       }
     }
     preloadAll();
@@ -461,7 +475,7 @@
     function speakTTS(text) {
       return new Promise(res => {
         const u = new SpeechSynthesisUtterance(String(text));
-        u.rate = 0.85;
+        u.rate = 0.78;
         u.pitch = 1;
         if (ttsVoice) u.voice = ttsVoice;
         const fallback = setTimeout(res, 5000);
@@ -666,23 +680,45 @@
         setStatus("Speech recognition not supported. Use Safari on iPhone.", "wrong");
         return;
       }
+      const finalAlternatives = [];
+      let interimTranscript = "";
+      let answerTimer = null;
+      let answerSubmitted = false;
+
+      function submitAnswer() {
+        if (answerSubmitted) return;
+        answerSubmitted = true;
+        if (answerTimer) clearTimeout(answerTimer);
+        state = "checking";
+        try { recognition.stop(); } catch(e) {}
+        processAnswer(finalAlternatives.length ? finalAlternatives : [interimTranscript]);
+      }
+
       recognition = new SR();
       recognition.lang = "en-US";
       recognition.interimResults = true;
-      recognition.maxAlternatives = 3;
+      recognition.continuous = true;
+      recognition.maxAlternatives = 5;
       state = "listening";
       setStatus("Listening...", "listening");
 
       recognition.onresult = e => {
-        let interim = "", final = "";
+        let interim = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) final += e.results[i][0].transcript;
-          else interim += e.results[i][0].transcript;
+          const result = e.results[i];
+          if (result.isFinal) {
+            const alternatives = Array.from(result).map(alt => alt.transcript.trim()).filter(Boolean);
+            if (alternatives.length) finalAlternatives.push(alternatives);
+          } else {
+            interim += result[0].transcript;
+          }
         }
-        document.getElementById("transcript").textContent = '"' + (final || interim) + '"';
-        if (final) {
-          recognition.stop();
-          processAnswer(final);
+        interimTranscript = interim.trim();
+        const displayText = finalAlternatives.map(group => group[0]).join(" ") || interimTranscript;
+        document.getElementById("transcript").textContent = '"' + displayText + '"';
+        if (finalAlternatives.length) {
+          if (answerTimer) clearTimeout(answerTimer);
+          answerTimer = setTimeout(submitAnswer, 1200);
         }
       };
 
@@ -695,7 +731,10 @@
 
       recognition.onend = () => {
         if (cancelled) return;
-        if (state === "listening") {
+        if (state === "checking") return;
+        if (finalAlternatives.length) {
+          submitAnswer();
+        } else if (state === "listening") {
           state = "waiting";
           setButtons("active");
           setStatus("Didn't catch that. Tap Cancel to restart.", "wrong");
@@ -703,6 +742,18 @@
       };
 
       recognition.start();
+    }
+
+    function expandTranscriptAlternatives(input) {
+      if (!Array.isArray(input)) return [String(input || "")];
+      if (!Array.isArray(input[0])) return input.map(String);
+      return input.reduce((phrases, group) => {
+        const next = [];
+        for (const phrase of phrases) {
+          for (const alt of group) next.push((phrase + " " + alt).trim());
+        }
+        return next.slice(0, 50);
+      }, [""]);
     }
 
     function extractFromSpeech(transcript) {
@@ -745,8 +796,15 @@
     async function processAnswer(transcript) {
       if (cancelled) return;
       state = "checking";
-      const heard = extractFromSpeech(transcript);
-      const correct = arraysEqual(heard, currentSeq);
+      const transcriptOptions = expandTranscriptAlternatives(transcript);
+      const heardOptions = transcriptOptions
+        .map(t => extractFromSpeech(t))
+        .filter(heard => heard.length);
+      const heard = heardOptions.find(option => arraysEqual(option, currentSeq)) || heardOptions[0] || [];
+      const correct = heardOptions.some(option => arraysEqual(option, currentSeq));
+      if (heard.length) {
+        document.getElementById("transcript").textContent = '"' + heard.join(" ") + '"';
+      }
 
       if (correct) {
         playTone("ding");

@@ -2,7 +2,10 @@
 # Run from the Working Memory directory: bash generate-audio-elevenlabs.sh
 # Free account at elevenlabs.io — API key found at elevenlabs.io/app/settings/api-keys
 
-API_KEY="sk_b4aec22a64f531a34269fd8108af7c49a8aadce61e765191"
+if [ -z "$ELEVENLABS_API_KEY" ]; then
+  echo "Missing ELEVENLABS_API_KEY. Run: export ELEVENLABS_API_KEY='your-key-here'"
+  exit 1
+fi
 
 # Voice options (uncomment one):
 VOICE_ID="21m00Tcm4TlvDq8ikWAM"  # Rachel — American female, clear and natural
@@ -50,7 +53,7 @@ for item in "${ITEMS[@]}"; do
 
   HTTP_STATUS=$(curl -s -w "%{http_code}" -X POST \
     "https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}" \
-    -H "xi-api-key: ${API_KEY}" \
+    -H "xi-api-key: ${ELEVENLABS_API_KEY}" \
     -H "Content-Type: application/json" \
     -d "{
       \"text\": \"${item}\",
