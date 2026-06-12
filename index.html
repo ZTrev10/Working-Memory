@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Working Memory Trainer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f9f6f1;
+      --surface: #ffffff;
+      --surface2: #f1ede6;
+      --text: #1a1a1a;
+      --text2: #6b6560;
+      --border: rgba(0,0,0,0.12);
+      --blue: #185FA5;
+      --blue-bg: #E6F1FB;
+      --green: #3B6D11;
+      --green-bg: #EAF3DE;
+      --red: #A32D2D;
+      --red-bg: #FCEBEB;
+      --active-bg: #B5D4F4;
+      --active-text: #042C53;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1.25rem 3rem;
+      gap: 1.25rem;
+      max-width: 420px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      text-align: center;
+      letter-spacing: -0.3px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text2);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      width: 100%;
+    }
+
+    .stat {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1rem;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .sequence-display {
+      width: 100%;
+      min-height: 96px;
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 1.25rem;
+    }
+
+    .seq-placeholder {
+      font-size: 14px;
+      color: var(--text2);
+    }
+
+    .seq-item {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--surface2);
+      border-radius: var(--radius-md);
+      padding: 6px 16px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .seq-item.active {
+      background: var(--active-bg);
+      color: var(--active-text);
+    }
+
+    .status-box {
+      width: 100%;
+      min-height: 60px;
+      background: var(--surface2);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.9rem 1.25rem;
+      text-align: center;
+      font-size: 15px;
+      color: var(--text2);
+      line-height: 1.5;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .status-box.listening {
+      background: var(--blue-bg);
+      color: var(--blue);
+      font-weight: 500;
+    }
+
+    .status-box.correct {
+      background: var(--green-bg);
+      color: var(--green);
+      font-weight: 500;
+    }
+
+    .status-box.wrong {
+      background: var(--red-bg);
+      color: var(--red);
+      font-weight: 500;
+    }
+
+    .transcript-box {
+      width: 100%;
+      font-size: 13px;
+      color: var(--text2);
+      text-align: center;
+      min-height: 22px;
+      font-style: italic;
+    }
+
+    .recall-hint {
+      width: 100%;
+      font-size: 13px;
+      color: var(--text2);
+      text-align: center;
+      line-height: 1.6;
+      min-height: 20px;
+    }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      width: 100%;
+    }
+
+    button {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      border: 0.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      -webkit-appearance: none;
+    }
+
+    button:active { transform: scale(0.97); }
+    button:hover { background: var(--surface2); }
+
+    button.primary {
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+    }
+
+    button.primary:hover { background: #0C447C; }
+    button.full { grid-column: 1 / -1; }
+    button:disabled { opacity: 0.4; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>Working Memory</h1>
+    <p class="subtitle">Remember objects in order, then numbers in order.</p>
+
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-label">Length</div>
+        <div class="stat-value" id="stat-len">3</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Streak</div>
+        <div class="stat-value" id="stat-streak">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Best</div>
+        <div class="stat-value" id="stat-best">3</div>
+      </div>
+    </div>
+
+    <div class="sequence-display" id="seq-display">
+      <span class="seq-placeholder">tap start to begin</span>
+    </div>
+
+    <div class="status-box" id="status-box">Press start to play a sequence.</div>
+    <div class="transcript-box" id="transcript"></div>
+    <div class="recall-hint" id="recall-hint"></div>
+
+    <div class="btn-row" id="btn-row">
+      <button class="primary full" onclick="startRound()">Start</button>
+    </div>
+  </div>
+
+  <script>
+    const OBJECTS = [
+      "apple","table","pencil","window","river","forest","candle","bottle","carpet","pillow",
+      "garden","mirror","pocket","basket","hammer","ladder","parrot","kitten","button","jacket",
+      "coffee","blanket","kettle","muffin","pebble","tunnel","rabbit","spider","cactus","helmet",
+      "pickle","monkey","mango","bagel","lemon","cabin","kitten","napkin","rubber","denim"
+    ];
+    const NUMBERS = [1,2,3,4,5,6,7,8,9];
+
+    let seqLen = 3;
+    let streak = 0;
+    let best = 3;
+    let currentSeq = [];
+    let expectedObjects = [];
+    let expectedNumbers = [];
+    let state = "idle";
+    let hadIncorrect = false;
+    let recognition = null;
+    let choiceRecognition = null;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playTone(type) {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      if (type === "ding") {
+        o.type = "sine";
+        o.frequency.setValueAtTime(880, audioCtx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(1100, audioCtx.currentTime + 0.1);
+        g.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7);
+        o.start();
+        o.stop(audioCtx.currentTime + 0.7);
+      } else {
+        o.type = "sawtooth";
+        o.frequency.setValueAtTime(120, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+        o.start();
+        o.stop(audioCtx.currentTime + 0.8);
+      }
+    }
+
+    function speak(text) {
+      return new Promise(res => {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(String(text));
+        u.rate = 0.9;
+        u.pitch = 1;
+        u.onend = res;
+        u.onerror = res;
+        speechSynthesis.speak(u);
+      });
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function buildSequence(len) {
+      const numCount = Math.max(1, Math.floor(len / 2));
+      const objCount = len - numCount;
+      const objs = shuffle(OBJECTS).slice(0, objCount);
+      const nums = shuffle(NUMBERS).slice(0, numCount);
+      let seq = shuffle([...objs, ...nums]);
+
+      // Enforce no more than 2 of same type in a row
+      for (let pass = 0; pass < 20; pass++) {
+        let fixed = true;
+        for (let i = 0; i < seq.length - 2; i++) {
+          const t = x => typeof x;
+          if (t(seq[i]) === t(seq[i+1]) && t(seq[i+1]) === t(seq[i+2])) {
+            for (let j = i + 3; j < seq.length; j++) {
+              if (t(seq[j]) !== t(seq[i])) {
+                [seq[i+2], seq[j]] = [seq[j], seq[i+2]];
+                fixed = false;
+                break;
+              }
+            }
+          }
+        }
+        if (fixed) break;
+      }
+      return seq;
+    }
+
+    function updateStats() {
+      document.getElementById("stat-len").textContent = seqLen;
+      document.getElementById("stat-streak").textContent = streak;
+      document.getElementById("stat-best").textContent = best;
+    }
+
+    function setStatus(msg, cls) {
+      const b = document.getElementById("status-box");
+      b.textContent = msg;
+      b.className = "status-box" + (cls ? " " + cls : "");
+    }
+
+    function setButtons(mode) {
+      const row = document.getElementById("btn-row");
+      if (mode === "start") {
+        row.innerHTML = `<button class="primary full" onclick="startRound()">Start</button>`;
+      } else if (mode === "listen") {
+        row.innerHTML = `<button class="primary full" onclick="startListening()">Tap to Answer</button>`;
+      } else if (mode === "choice") {
+        row.innerHTML = `
+          <button onclick="choiceRepeat()">Repeat Level</button>
+          <button onclick="choiceDecrease()">Step Down</button>
+        `;
+      } else if (mode === "none") {
+        row.innerHTML = "";
+      }
+    }
+
+    async function startRound() {
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+      hadIncorrect = false;
+      currentSeq = buildSequence(seqLen);
+      expectedObjects = currentSeq.filter(x => typeof x === "string");
+      expectedNumbers = currentSeq.filter(x => typeof x === "number");
+      state = "playing";
+      setButtons("none");
+      setStatus("Listen carefully...");
+      document.getElementById("recall-hint").textContent = "";
+      document.getElementById("transcript").textContent = "";
+
+      const display = document.getElementById("seq-display");
+      display.innerHTML = currentSeq.map((x, i) =>
+        `<span class="seq-item" id="si-${i}">${x}</span>`
+      ).join("");
+
+      for (let i = 0; i < currentSeq.length; i++) {
+        await new Promise(r => setTimeout(r, i === 0 ? 400 : 1000));
+        currentSeq.forEach((_, j) => {
+          const el = document.getElementById(`si-${j}`);
+          if (el) el.className = "seq-item" + (j === i ? " active" : "");
+        });
+        await speak(String(currentSeq[i]));
+      }
+
+      currentSeq.forEach((_, j) => {
+        const el = document.getElementById(`si-${j}`);
+        if (el) el.className = "seq-item";
+      });
+
+      document.getElementById("recall-hint").textContent = "Say objects in order, then numbers.";
+      state = "waiting";
+      setStatus("Ready when you are.");
+      setButtons("listen");
+    }
+
+    function startListening() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        setStatus("Speech recognition not supported. Use Chrome on Android.", "wrong");
+        return;
+      }
+      recognition = new SR();
+      recognition.lang = "en-US";
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 3;
+      state = "listening";
+      setStatus("Listening...", "listening");
+      setButtons("none");
+
+      recognition.onresult = e => {
+        let interim = "", final = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) final += e.results[i][0].transcript;
+          else interim += e.results[i][0].transcript;
+        }
+        document.getElementById("transcript").textContent = '"' + (final || interim) + '"';
+        if (final) {
+          recognition.stop();
+          processAnswer(final);
+        }
+      };
+
+      recognition.onerror = e => {
+        setStatus("Mic error: " + e.error + ". Try again.", "wrong");
+        state = "waiting";
+        setButtons("listen");
+      };
+
+      recognition.onend = () => {
+        if (state === "listening") {
+          state = "waiting";
+          setButtons("listen");
+        }
+      };
+
+      recognition.start();
+    }
+
+    function extractFromSpeech(transcript) {
+      const numberWords = {
+        one:1, two:2, three:3, four:4, five:5,
+        six:6, seven:7, eight:8, nine:9
+      };
+      const words = transcript.toLowerCase()
+        .replace(/[^a-z0-9 ]/g, " ")
+        .split(/\s+/)
+        .filter(Boolean);
+
+      const heardObjs = [];
+      const heardNums = [];
+
+      for (const w of words) {
+        if (numberWords[w] !== undefined) {
+          heardNums.push(numberWords[w]);
+        } else if (!isNaN(parseInt(w)) && parseInt(w) >= 1 && parseInt(w) <= 9) {
+          heardNums.push(parseInt(w));
+        } else if (OBJECTS.includes(w)) {
+          heardObjs.push(w);
+        }
+      }
+      return { heardObjs, heardNums };
+    }
+
+    function arraysEqual(a, b) {
+      return a.length === b.length && a.every((v, i) => v === b[i]);
+    }
+
+    async function processAnswer(transcript) {
+      state = "checking";
+      const { heardObjs, heardNums } = extractFromSpeech(transcript);
+      const objsOk = arraysEqual(heardObjs, expectedObjects);
+      const numsOk = arraysEqual(heardNums, expectedNumbers);
+      const correct = objsOk && numsOk;
+
+      if (correct) {
+        playTone("ding");
+        streak++;
+        if (seqLen > best) best = seqLen;
+
+        if (streak > 0 && streak % 3 === 0) {
+          seqLen++;
+          if (seqLen > best) best = seqLen;
+          updateStats();
+          setStatus(`Correct! Sequence now ${seqLen}.`, "correct");
+        } else {
+          updateStats();
+          setStatus("Correct!", "correct");
+        }
+
+        if (hadIncorrect) {
+          await new Promise(r => setTimeout(r, 1000));
+          setStatus("Want to repeat this level or step down?");
+          setButtons("choice");
+          startVoiceChoice();
+        } else {
+          await new Promise(r => setTimeout(r, 1200));
+          startRound();
+        }
+
+      } else {
+        playTone("buzz");
+        hadIncorrect = true;
+        streak = 0;
+        if (seqLen > 3) seqLen--;
+        updateStats();
+        setStatus("Incorrect. Repeating...", "wrong");
+        await new Promise(r => setTimeout(r, 1800));
+        repeatRound();
+      }
+    }
+
+    async function repeatRound() {
+      state = "playing";
+      setButtons("none");
+      setStatus("Listen again...");
+      document.getElementById("transcript").textContent = "";
+      document.getElementById("recall-hint").textContent = "";
+
+      const display = document.getElementById("seq-display");
+      display.innerHTML = currentSeq.map((x, i) =>
+        `<span class="seq-item" id="si-${i}">${x}</span>`
+      ).join("");
+
+      for (let i = 0; i < currentSeq.length; i++) {
+        await new Promise(r => setTimeout(r, i === 0 ? 400 : 1000));
+        currentSeq.forEach((_, j) => {
+          const el = document.getElementById(`si-${j}`);
+          if (el) el.className = "seq-item" + (j === i ? " active" : "");
+        });
+        await speak(String(currentSeq[i]));
+      }
+
+      currentSeq.forEach((_, j) => {
+        const el = document.getElementById(`si-${j}`);
+        if (el) el.className = "seq-item";
+      });
+
+      document.getElementById("recall-hint").textContent = "Say objects in order, then numbers.";
+      state = "waiting";
+      setStatus("Ready when you are.");
+      setButtons("listen");
+    }
+
+    function startVoiceChoice() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) return;
+      choiceRecognition = new SR();
+      choiceRecognition.lang = "en-US";
+      choiceRecognition.interimResults = false;
+      choiceRecognition.onresult = e => {
+        const t = e.results[0][0].transcript.toLowerCase();
+        if (t.includes("decrease") || t.includes("step") || t.includes("down")) {
+          choiceDecrease();
+        } else if (t.includes("repeat") || t.includes("same") || t.includes("again")) {
+          choiceRepeat();
+        }
+      };
+      choiceRecognition.onerror = () => {};
+      choiceRecognition.start();
+    }
+
+    function choiceRepeat() {
+      if (choiceRecognition) { try { choiceRecognition.stop(); } catch(e){} choiceRecognition = null; }
+      hadIncorrect = false;
+      startRound();
+    }
+
+    function choiceDecrease() {
+      if (choiceRecognition) { try { choiceRecognition.stop(); } catch(e){} choiceRecognition = null; }
+      if (seqLen > 3) seqLen--;
+      hadIncorrect = false;
+      updateStats();
+      startRound();
+    }
+
+    updateStats();
+  </script>
+</body>
+</html>
