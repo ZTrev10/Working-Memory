@@ -304,7 +304,6 @@
     const NUMBERS = [1,2,3,4,5,6,7,8,9];
 
     let seqLen = 3;
-    let seqLenBeforeWrong = 3;
     let streak = 0;
     let best = 3;
     let currentSeq = [];
@@ -316,43 +315,56 @@
     let choiceRecognition = null;
     let cancelled = false;
 
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let audioCtx = null;
+    function getAudioCtx() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      return audioCtx;
+    }
 
     function playTone(type) {
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
+      const ctx = getAudioCtx();
+      if (ctx.state === "suspended") ctx.resume();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
       o.connect(g);
-      g.connect(audioCtx.destination);
+      g.connect(ctx.destination);
       if (type === "ding") {
         o.type = "sine";
-        o.frequency.setValueAtTime(880, audioCtx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(1100, audioCtx.currentTime + 0.1);
-        g.gain.setValueAtTime(0.4, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7);
+        o.frequency.setValueAtTime(880, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(1100, ctx.currentTime + 0.1);
+        g.gain.setValueAtTime(0.4, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
         o.start();
-        o.stop(audioCtx.currentTime + 0.7);
+        o.stop(ctx.currentTime + 0.7);
       } else {
         o.type = "sawtooth";
-        o.frequency.setValueAtTime(120, audioCtx.currentTime);
-        g.gain.setValueAtTime(0.5, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+        o.frequency.setValueAtTime(120, ctx.currentTime);
+        g.gain.setValueAtTime(0.5, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
         o.start();
-        o.stop(audioCtx.currentTime + 0.8);
+        o.stop(ctx.currentTime + 0.8);
       }
     }
 
-    // iOS Safari pauses synthesis unexpectedly — resume it periodically
-    setInterval(() => {
-      if (speechSynthesis.speaking && speechSynthesis.paused) speechSynthesis.resume();
-    }, 200);
+    let ttsVoice = null;
+    function loadVoice() {
+      const voices = speechSynthesis.getVoices();
+      if (!voices.length) return;
+      ttsVoice = voices.find(v => v.lang === 'en-US' && v.localService)
+              || voices.find(v => v.lang.startsWith('en') && v.localService)
+              || voices.find(v => v.lang.startsWith('en'))
+              || voices[0];
+    }
+    speechSynthesis.addEventListener('voiceschanged', loadVoice);
+    loadVoice();
 
     function speak(text) {
       return new Promise(res => {
         const u = new SpeechSynthesisUtterance(String(text));
         u.rate = 0.85;
         u.pitch = 1;
-        // Fallback in case onend never fires (iOS bug)
-        const fallback = setTimeout(res, 4000);
+        if (ttsVoice) u.voice = ttsVoice;
+        const fallback = setTimeout(res, 5000);
         u.onend = () => { clearTimeout(fallback); res(); };
         u.onerror = () => { clearTimeout(fallback); res(); };
         speechSynthesis.speak(u);
@@ -455,9 +467,13 @@
     async function warmUpSpeech() {
       if (speechWarmedUp) return;
       speechWarmedUp = true;
-      const u = new SpeechSynthesisUtterance(" ");
-      u.volume = 0;
+      loadVoice();
+      const u = new SpeechSynthesisUtterance(".");
+      u.volume = 0.01;
+      if (ttsVoice) u.voice = ttsVoice;
       speechSynthesis.speak(u);
+      await new Promise(r => setTimeout(r, 300));
+      speechSynthesis.cancel();
     }
 
     let micPermissionGranted = false;
@@ -474,7 +490,6 @@
     }
 
     async function startRound() {
-      if (audioCtx.state === "suspended") await audioCtx.resume();
       await warmUpSpeech();
       try { await requestMicPermission(); } catch(e) { return; }
       cancelled = false;
@@ -642,8 +657,6 @@
         playTone("buzz");
         hadIncorrect = true;
         streak = 0;
-        seqLenBeforeWrong = seqLen;
-        if (seqLen > 3) seqLen--;
         updateStats();
         setStatus("Incorrect. Repeating...", "wrong");
         await new Promise(r => setTimeout(r, 1800));
@@ -710,9 +723,7 @@
 
     function choiceRepeat() {
       if (choiceRecognition) { try { choiceRecognition.stop(); } catch(e){} choiceRecognition = null; }
-      seqLen = seqLenBeforeWrong;
       hadIncorrect = false;
-      updateStats();
       startRound();
     }
 
