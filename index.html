@@ -183,6 +183,21 @@
       color: var(--active-text);
     }
 
+    .seq-item.hidden {
+      min-width: 52px;
+      color: transparent;
+      user-select: none;
+    }
+
+    .seq-item.hidden::after {
+      content: "•";
+      color: var(--text2);
+    }
+
+    .sequence-display.revealable {
+      cursor: pointer;
+    }
+
     .status-box {
       width: 100%;
       min-height: 60px;
@@ -306,7 +321,7 @@
       <button class="voice-btn" id="voice-female" onclick="setVoice('female')">Female</button>
     </div>
 
-    <div class="sequence-display" id="seq-display">
+    <div class="sequence-display" id="seq-display" onclick="revealSequence()">
       <span class="seq-placeholder">tap start to begin</span>
     </div>
 
@@ -324,15 +339,15 @@
       "cat","dog","bird","fish","frog","wolf","fox","owl","duck",
       "cow","pig","horse","sheep","ant","crab","shark","hawk",
       "crow","bat","rat","mouse","lamb","bull","hen","elk","seal","whale",
-      "cup","bowl","plate","fork","knife","spoon","pot","pan","box","bag",
+      "cup","bowl","plate","knife","spoon","pot","pan","box","bag",
       "book","pen","key","lock","door","bed","chair","lamp","clock","ring",
-      "belt","boot","shoe","hat","glove","brush","comb","soap","stone","leaf",
-      "branch","seed","vine","bush","log","rope","chain","hook","nail","bell",
+      "belt","boot","hat","glove","brush","comb","soap","stone","leaf",
+      "branch","seed","bush","log","rope","chain","hook","nail","bell",
       "ball","dart","card","coin","gem","bead","silk","wool","thread",
       "bread","cake","pie","soup","rice","corn","nut","fig","plum",
-      "grape","lime","peach","egg","milk","cheese","ham","prawn",
+      "grape","peach","egg","milk","cheese","ham","prawn",
       "hill","cliff","cave","lake","pond","stream","beach","field","barn","bridge",
-      "path","gate","tower","shelf","drum","torch","flag","mask","sword","shield",
+      "path","tower","shelf","drum","torch","flag","mask","sword","shield",
       "brick","cloud","flame","glass","grass","iron","match","paint","plank","smoke",
       "snail","spike","spine","stamp","stick","straw","tent","thorn","trunk","twig"
     ];
@@ -349,6 +364,7 @@
     let recognition = null;
     let choiceRecognition = null;
     let cancelled = false;
+    let sequenceRevealed = false;
 
     let audioCtx = null;
     function getAudioCtx() {
@@ -558,13 +574,40 @@
       b.className = "status-box" + (cls ? " " + cls : "");
     }
 
+    function renderSequenceDisplay(activeIndex = -1) {
+      const display = document.getElementById("seq-display");
+      if (!currentSeq.length) {
+        display.className = "sequence-display";
+        display.innerHTML = `<span class="seq-placeholder">tap start to begin</span>`;
+        return;
+      }
+      display.className = "sequence-display revealable";
+      display.innerHTML = currentSeq.map((x, i) => {
+        const classes = ["seq-item"];
+        if (!sequenceRevealed) classes.push("hidden");
+        if (i === activeIndex) classes.push("active");
+        return `<span class="${classes.join(" ")}" id="si-${i}">${sequenceRevealed ? x : ""}</span>`;
+      }).join("");
+      if (!sequenceRevealed) {
+        display.insertAdjacentHTML("beforeend", `<span class="seq-placeholder">tap to show</span>`);
+      }
+    }
+
+    function revealSequence() {
+      if (!currentSeq.length || sequenceRevealed) return;
+      sequenceRevealed = true;
+      renderSequenceDisplay();
+    }
+
     function cancelRound() {
       cancelled = true;
       cancelSpeech();
       if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
       if (choiceRecognition) { try { choiceRecognition.stop(); } catch(e){} choiceRecognition = null; }
       state = "idle";
-      document.getElementById("seq-display").innerHTML = `<span class="seq-placeholder">tap start to begin</span>`;
+      currentSeq = [];
+      sequenceRevealed = false;
+      renderSequenceDisplay();
       document.getElementById("transcript").textContent = "";
       document.getElementById("recall-hint").textContent = "";
       setStatus("Cancelled. Press start to play a new sequence.");
@@ -635,6 +678,7 @@
       cancelled = false;
       hadIncorrect = false;
       currentSeq = buildSequence(seqLen);
+      sequenceRevealed = false;
       expectedObjects = currentSeq.filter(x => typeof x === "string");
       expectedNumbers = currentSeq.filter(x => typeof x === "number");
       state = "playing";
@@ -644,28 +688,19 @@
       document.getElementById("transcript").textContent = "";
       updateStats();
 
-      const display = document.getElementById("seq-display");
-      display.innerHTML = currentSeq.map((x, i) =>
-        `<span class="seq-item" id="si-${i}">${x}</span>`
-      ).join("");
+      renderSequenceDisplay();
 
       for (let i = 0; i < currentSeq.length; i++) {
         if (cancelled) return;
         await new Promise(r => setTimeout(r, i === 0 ? 300 : 400));
         if (cancelled) return;
-        currentSeq.forEach((_, j) => {
-          const el = document.getElementById(`si-${j}`);
-          if (el) el.className = "seq-item" + (j === i ? " active" : "");
-        });
+        renderSequenceDisplay(i);
         await playWord(String(currentSeq[i]));
       }
 
       if (cancelled) return;
 
-      currentSeq.forEach((_, j) => {
-        const el = document.getElementById(`si-${j}`);
-        if (el) el.className = "seq-item";
-      });
+      renderSequenceDisplay();
 
       document.getElementById("recall-hint").textContent = "Recall the sequence.";
       state = "waiting";
@@ -758,15 +793,15 @@
 
     function extractFromSpeech(transcript) {
       const numberWords = {
-        one:1, won:1,
-        two:2, to:2, too:2,
-        three:3, free:3,
+        one:1, won:1, wan:1,
+        two:2, to:2, too:2, tu:2,
+        three:3, free:3, tree:3,
         four:4, for:4, fore:4,
-        five:5,
-        six:6,
-        seven:7,
-        eight:8, ate:8,
-        nine:9
+        five:5, fife:5,
+        six:6, sicks:6, sex:6,
+        seven:7, sevin:7,
+        eight:8, ate:8, ait:8,
+        nine:9, nein:9
       };
       const words = transcript.toLowerCase()
         .replace(/[^a-z0-9 ]/g, " ")
@@ -852,29 +887,21 @@
       setStatus("Listen again...");
       document.getElementById("transcript").textContent = "";
       document.getElementById("recall-hint").textContent = "";
+      sequenceRevealed = false;
 
-      const display = document.getElementById("seq-display");
-      display.innerHTML = currentSeq.map((x, i) =>
-        `<span class="seq-item" id="si-${i}">${x}</span>`
-      ).join("");
+      renderSequenceDisplay();
 
       for (let i = 0; i < currentSeq.length; i++) {
         if (cancelled) return;
         await new Promise(r => setTimeout(r, i === 0 ? 300 : 400));
         if (cancelled) return;
-        currentSeq.forEach((_, j) => {
-          const el = document.getElementById(`si-${j}`);
-          if (el) el.className = "seq-item" + (j === i ? " active" : "");
-        });
+        renderSequenceDisplay(i);
         await playWord(String(currentSeq[i]));
       }
 
       if (cancelled) return;
 
-      currentSeq.forEach((_, j) => {
-        const el = document.getElementById(`si-${j}`);
-        if (el) el.className = "seq-item";
-      });
+      renderSequenceDisplay();
 
       document.getElementById("recall-hint").textContent = "Recall the sequence.";
       state = "waiting";

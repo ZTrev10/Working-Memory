@@ -8,15 +8,15 @@ ITEMS=(
   cat dog bird fish frog wolf fox owl duck
   cow pig horse sheep ant crab shark hawk
   crow bat rat mouse lamb bull hen elk seal whale
-  cup bowl plate fork knife spoon pot pan box bag
+  cup bowl plate knife spoon pot pan box bag
   book pen key lock door bed chair lamp clock ring
-  belt boot shoe hat glove brush comb soap stone leaf
-  branch seed vine bush log rope chain hook nail bell
+  belt boot hat glove brush comb soap stone leaf
+  branch seed bush log rope chain hook nail bell
   ball dart card coin gem bead silk wool thread
   bread cake pie soup rice corn nut fig plum
-  grape lime peach egg milk cheese ham prawn
+  grape peach egg milk cheese ham prawn
   hill cliff cave lake pond stream beach field barn bridge
-  path gate tower shelf drum torch flag mask sword shield
+  path tower shelf drum torch flag mask sword shield
   brick cloud flame glass grass iron match paint plank smoke
   snail spike spine stamp stick straw tent thorn trunk twig
   1 2 3 4 5 6 7 8 9
