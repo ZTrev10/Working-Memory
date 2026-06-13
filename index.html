@@ -423,6 +423,7 @@
       // Clear cache so new voice loads fresh
       Object.keys(rawAudio).forEach(k => delete rawAudio[k]);
       Object.keys(decodedAudio).forEach(k => delete decodedAudio[k]);
+      Object.keys(pendingAudio).forEach(k => delete pendingAudio[k]);
       preloadAll();
     }
 
@@ -434,10 +435,15 @@
     // Pre-fetch audio files in background; decode on first play
     const rawAudio = {};
     const decodedAudio = {};
+    const pendingAudio = {};
     const AUDIO_EXTENSIONS = ["mp3", "m4a", "wav"];
 
-    async function fetchAudioFile(item) {
-      const roots = selectedVoice ? [`audio/${selectedVoice}`, "audio"] : ["audio"];
+    function audioCacheKey(item, voice = selectedVoice) {
+      return `${voice || "none"}:${item}`;
+    }
+
+    async function fetchAudioFile(item, voice = selectedVoice) {
+      const roots = voice ? [`audio/${voice}`] : [];
       for (const root of roots) {
         for (const ext of AUDIO_EXTENSIONS) {
           try {
@@ -449,20 +455,34 @@
       return null;
     }
 
+    async function loadRawAudio(item, voice = selectedVoice) {
+      const key = audioCacheKey(String(item), voice);
+      if (rawAudio[key]) return rawAudio[key];
+      if (!pendingAudio[key]) {
+        pendingAudio[key] = fetchAudioFile(String(item), voice).then(audio => {
+          if (audio) rawAudio[key] = audio;
+          delete pendingAudio[key];
+          return audio;
+        });
+      }
+      return pendingAudio[key];
+    }
+
     async function preloadAll() {
       if (!selectedVoice) return;
+      const voice = selectedVoice;
       const items = [...OBJECTS, ...NUMBERS.map(String)];
       for (const item of items) {
-        const audio = await fetchAudioFile(item);
-        if (audio) rawAudio[item] = audio;
+        await loadRawAudio(item, voice);
       }
     }
     preloadAll();
 
     async function getBuffer(text) {
-      const key = String(text);
+      const word = String(text);
+      const key = audioCacheKey(word);
       if (decodedAudio[key]) return decodedAudio[key];
-      const raw = rawAudio[key];
+      const raw = rawAudio[key] || await loadRawAudio(word);
       if (!raw) return null;
       try {
         const ctx = getAudioCtx();
