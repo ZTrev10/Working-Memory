@@ -8,9 +8,9 @@ ITEMS=(
   cat dog bird fish frog wolf fox owl duck
   cow pig horse sheep ant crab shark hawk
   crow bat rat mouse lamb bull hen elk seal whale
-  cup bowl plate knife spoon pot pan box bag
+  cup plate knife spoon pot pan box bag
   book pen key lock door bed chair lamp clock ring
-  belt boot hat glove brush comb soap stone leaf
+  belt boot hat glove brush comb stone leaf
   branch seed bush log rope chain hook nail bell
   ball dart card coin gem bead silk wool thread
   bread cake pie soup rice corn nut fig plum
