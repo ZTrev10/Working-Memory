@@ -848,15 +848,20 @@
       return a.length === b.length && a.every((v, i) => v === b[i]);
     }
 
+    function expectedAnswer() {
+      return [...expectedObjects, ...expectedNumbers];
+    }
+
     async function processAnswer(transcript) {
       if (cancelled) return;
       state = "checking";
+      const target = expectedAnswer();
       const transcriptOptions = expandTranscriptAlternatives(transcript);
       const heardOptions = transcriptOptions
         .map(t => extractFromSpeech(t))
         .filter(heard => heard.length);
-      const heard = heardOptions.find(option => arraysEqual(option, currentSeq)) || heardOptions[0] || [];
-      const correct = heardOptions.some(option => arraysEqual(option, currentSeq));
+      const heard = heardOptions.find(option => arraysEqual(option, target)) || heardOptions[0] || [];
+      const correct = heardOptions.some(option => arraysEqual(option, target));
       if (heard.length) {
         document.getElementById("transcript").textContent = '"' + heard.join(" ") + '"';
       }
