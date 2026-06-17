@@ -7,18 +7,18 @@ mkdir -p audio/male audio/female
 ITEMS=(
   cat dog bird fish frog wolf fox owl duck
   cow pig horse sheep ant crab shark hawk
-  crow bat rat mouse lamb bull hen elk seal whale
-  cup plate knife spoon pot pan box bag
+  crow bat rat mouse hen elk seal whale
+  cup plate knife spoon pot box bag
   book pen key lock door bed chair lamp clock ring
   belt boot hat glove brush comb stone leaf
-  branch seed bush log rope chain hook nail bell
-  ball dart card coin gem bead silk wool thread
+  branch seed bush log rope chain hook nail
+  ball dart card coin gem silk wool thread
   bread cake pie soup rice corn nut fig plum
   grape peach egg milk cheese ham prawn
-  hill cliff cave lake pond stream beach field barn bridge
-  path tower shelf drum torch flag mask sword shield
-  brick cloud flame glass grass iron match paint plank smoke
-  snail spike spine stamp stick straw tent thorn trunk twig
+  hill cliff cave pond stream beach bridge
+  shelf drum torch flag mask
+  brick cloud flame grass iron match paint plank
+  snail spike stamp stick straw tent twig
   1 2 3 4 5 6 7 8 9
 )
 
